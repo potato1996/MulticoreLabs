@@ -11,6 +11,7 @@ But accessing the shared variable without race condition
 brings overheads.
 
 Shared Var      | minDis_s
+
 Loop Unrolling  | NO
 
 ## Prerequistites
