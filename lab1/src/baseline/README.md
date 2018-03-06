@@ -1,4 +1,4 @@
-#README
+# Lab1 Baseline Version
 
 This is the baseline parallel(multithread) version of TSM.
 
@@ -10,6 +10,7 @@ Since different threads do NOT share the shortest path they
 got, thus the "user time" would be larger than serial version.
 
 Shared Var      | NONE
+
 Loop Unrolling  | YES
 
 ## Prerequistites
@@ -31,5 +32,7 @@ ptsm <num-cities> <num-threads> <input-file-path>
 We have three MACRO options defined in `Common.h`
 
 MAXCITIES  | The maximum city numbers (default 10, as given in problem description)
+
 DEBUG      | If set, check the result correctness and print messages
+
 USE_MULTI_THREAD | If set, use openmp version. Otherwise use serial version.

@@ -15,6 +15,7 @@ namespace {
 		int& minDis_s,
 		int& minDis,
 		int* minAnsSeq) {
+		//leaf case
 		if (depth == numCities) {
 			bool setSeq = false;
 #pragma omp critical
@@ -32,16 +33,25 @@ namespace {
 			}
 			return;
 		}
+		//DFS search
 		for (int i = 0; i < numCities; ++i) {
+			//already visit city i before, skip it
 			if (testBit(mask, i))continue;
+
+			//get the distance from current city to city i
 			const int disi = dis[toOneDim(currCity, i, numCities)];
 
+			//get the minimum result so far(from shared variable)
 			int globalMinDis;
 #pragma omp atomic read
 			globalMinDis = minDis_s;
 
+			//over the minimum result, skip it
 			if (currDis + disi >= globalMinDis)continue;
+
+			//add the next city into tracking array
 			currAnsSeq[depth] = i;
+
 			DFS(dis, numCities,
 				currDis + disi,
 				i,
@@ -67,7 +77,7 @@ void MultithreadSolution::tsm(const int* dis,
 
 #pragma omp parallel
 	{
-	//private variables
+		//private variables
 		int tid = omp_get_thread_num();
 		int currAnsSeq[MAXCITIES];
 		int *minAnsSeq = minAnsSeqs + tid * numCities;
@@ -120,5 +130,4 @@ void MultithreadSolution::tsm(const int* dis,
 	//clean up
 	delete minDis_ns;
 	delete minAnsSeqs;
-
 }
