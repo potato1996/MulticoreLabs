@@ -1,15 +1,16 @@
-#README
+# Lab1 Version1
 
 This is parallel(multithread) version1 of TSM.
 
-This version simply divide the work as even as possible, 
-use the same algorithm as serial version, and finally
-gather up the result.
+This version shared `minDis`-the shortest path they got,
+but donot unroll the first two loops.
 
-Since different threads do NOT share the shortest path they
-got, thus the "user time" would be larger than serial version.
+Since different threads DO share the shortest path they
+got, thus the "user time" would be close to serial version.
+But accessing the shared variable without race condition
+brings overheads.
 
-Shared Var      | 
+Shared Var      | minDis_s
 Loop Unrolling  | NO
 
 ## Prerequistites
@@ -31,5 +32,7 @@ ptsm <num-cities> <num-threads> <input-file-path>
 We have three MACRO options defined in `Common.h`
 
 MAXCITIES  | The maximum city numbers (default 10, as given in problem description)
+
 DEBUG      | If set, check the result correctness and print messages
+
 USE_MULTI_THREAD | If set, use openmp version. Otherwise use serial version.
