@@ -1,0 +1,7 @@
+There are three parallel versions - version{0,1,2} in each folder,
+where version2 has the best performance.
+
+For the difference between them and the compiliation guide, please
+refer to the READMEs in each folder.
+
+Simply `module load gcc-6.2.0` and then `make` should be fine on crunchy machines.

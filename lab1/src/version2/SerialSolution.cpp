@@ -51,10 +51,15 @@ tsm(const int * dis, const int numCities)
 			dis[toOneDim(0,i,numCities)], i, currAnsSeq,
 			setBit(1, i), 2, minDis, minAnsSeq);
 	}
-	printf("Best path:");
-	for (int j = 0; j < numCities; ++j) {
-		printf(" %d", minAnsSeq[j]);
+	if(numCities > 1){
+		printf("Best path:");
+		for (int j = 0; j < numCities; ++j) {
+			printf(" %d", minAnsSeq[j]);
+		}
+		printf("\nDistance: %d\n", minDis);
 	}
-	printf("\nDistance: %d\n", minDis);
+	else{
+		printf("Best Path: 0\nDistance: 0\n");
+	}
 	return;
 }
