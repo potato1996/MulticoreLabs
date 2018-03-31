@@ -22,7 +22,7 @@ namespace {
 			}
 			return;
 		}
-		for (int i = 0; i < numCities; ++i) {
+		for (int i = 1; i < numCities; ++i) {
 			if (testBit(mask, i))continue;
 			const int disi = dis[toOneDim(currCity, i, numCities)];
 			if (currDis + disi >= minDis)continue;
@@ -43,12 +43,13 @@ tsm(const int * dis, const int numCities)
 {
 	int minDis = INT_MAX;
 	int currAnsSeq[MAXCITIES];
+	currAnsSeq[0] = 0; //must start from city 0
 	int minAnsSeq[MAXCITIES];
-	for (int i = 0; i < numCities; ++i) {
-		currAnsSeq[0] = i;
+	for (int i = 1; i < numCities; ++i) {
+		currAnsSeq[1] = i;
 		DFS(dis, numCities,
-			0, i, currAnsSeq,
-			setBit(0, i), 1, minDis, minAnsSeq);
+			dis[toOneDim(0,i,numCities)], i, currAnsSeq,
+			setBit(1, i), 2, minDis, minAnsSeq);
 	}
 	printf("Best path:");
 	for (int j = 0; j < numCities; ++j) {

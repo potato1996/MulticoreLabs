@@ -37,7 +37,7 @@ namespace {
 			return;
 		}
 		//DFS search
-		for (int i = 0; i < numCities; ++i) {
+		for (int i = 1; i < numCities; ++i) {
 			//already visited city i before, skip it
 			if (testBit(mask, i))continue;
 			
@@ -71,7 +71,7 @@ void MultithreadSolution::tsm(const int* dis,
 	const int numCities, 
 	const int numThreads)
 {
-	if(numCities > 1){
+	if(numCities > 2){
 		omp_set_num_threads(numThreads);
 
 		//shared variables
@@ -88,18 +88,22 @@ void MultithreadSolution::tsm(const int* dis,
 
 			minDis_ns[tid] = INT_MAX;
 
+			//must start from city 0 !
+			currAnsSeq[0] = 0;
+
 			//make workload distributed more evenly:
 			//manually unroll the first two loops!
 		#pragma omp for schedule(static)
-			for (int i = 0; i < numCities * numCities; ++i) {
+			for (int i = 0; i < (numCities-1) * (numCities-1); ++i) {
 				
 				//the city id for the first two cities
-				int firstId = i/numCities;
-				int secondId = i%numCities;
+				int firstId = i/(numCities-1) + 1;
+				int secondId = i%(numCities-1) + 1;
 				if(firstId == secondId)continue;
 				
 				//the distance between first two cities
-				const int disi = dis[toOneDim(firstId, secondId, numCities)];
+				const int disi = dis[firstId] + 
+					dis[toOneDim(firstId, secondId, numCities)];
 
 				//read shared var atomically
 				int globalMinDis;
@@ -109,15 +113,15 @@ void MultithreadSolution::tsm(const int* dis,
 				if (disi >= globalMinDis)continue;
 
 				//set tracking array
-				currAnsSeq[0] = firstId;
-				currAnsSeq[1] = secondId;
+				currAnsSeq[1] = firstId;
+				currAnsSeq[2] = secondId;
 
 				DFS(dis, numCities,
 					disi,
 					secondId,
 					currAnsSeq,
-					setBit(setBit(0, firstId),secondId),
-					2,
+					setBit(setBit(1, firstId),secondId),
+					3,
 					minDis_s,
 					minDis_ns[tid],
 				minAnsSeq);
@@ -161,7 +165,13 @@ void MultithreadSolution::tsm(const int* dis,
 		delete minDis_ns;
 		delete minAnsSeqs;
 	}
-	else{
+	else if(numCities == 1){
 		printf("Best Path: 0\nDistance: 0\n");
+	}
+	else if(numCities == 2){
+		printf("Best Path: 0 1\nDistance: %d\n", dis[1]);
+	}
+	else{
+		printf("Number of Cities must be positive!\n");
 	}
 }
