@@ -4,14 +4,15 @@
 PROGRAMPATH=$1
 CITYNUM=$2
 INPUTFILE=$3
+TESTNUM=$4
 
 echo "PROGRAM=<$PROGRAMPATH> CITINUM=<$CITYNUM> INPUTFILE=<$INPUTFILE>"
 
 INS="`seq 1 ${CITYNUM}`"
-TESTNUM="`seq 1 20`"
+TEST="`seq 1 ${TESTNUM}`"
 
 for t in ${INS}; do
-	for n in ${TESTNUM}; do
+	for n in ${TEST}; do
 		echo "$PROGRAMPATH $CITYNUM $t $INPUTFILE"
 		time ${PROGRAMPATH} ${CITYNUM} ${t} ${INPUTFILE}
 	done
