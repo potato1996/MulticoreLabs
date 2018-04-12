@@ -1,7 +1,7 @@
 CC=mpicc
 CCFLAGS=-std=c99 -O2 -Wall -I. -lm
 
-DEPS = gssol.h 
+DEPS = gssol.h Common.h 
 
 OBJ = gs.o gssol.o
 
