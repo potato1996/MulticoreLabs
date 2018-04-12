@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <mpi.h>
-
+#include <string.h>
+#include "gssol.h"
 #define TO_ONE_DIM(x, y, n) ((x) * (n) + (y))
 
 /***** Globals ******/
@@ -16,9 +17,11 @@ int num = 0;  /* number of unknowns */
 void check_matrix(); /* Check whether the matrix will converge */
 void get_input();  /* Read input from file */
 
+int solve_gs(const int comm_sz,
+		const int my_rank); /* solve the problem, return the number of iters */
+
 //distribute input across machines
 void distribute_input(float** a_local, 
-		float** x_local,
 		float** b_local,
 		int** proc_startid,
 		int** proc_chunksize,
@@ -50,7 +53,7 @@ void check_matrix()
     
 		for(j = 0; j < num; j++)
 			if( j != i)
-				sum += fabs(a[TO_ONE_DIM(i,j,n)]);
+				sum += fabs(a[TO_ONE_DIM(i,j,num)]);
        
 		if( aii < sum)
 		{
@@ -71,7 +74,6 @@ void check_matrix()
 }
 
 void distribute_input(float** a_local, 
-		float** x_local,
 		float** b_local,
 		int** proc_startid,
 		int** proc_chunksize,
@@ -79,15 +81,15 @@ void distribute_input(float** a_local,
 		const int my_rank){
 	
 	//1. let all process know the number of unknows
-	MPI_Bcase(&num, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&num, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 	//2. calculate chunksizes
 	//cheat sheet
 	//If we have n item for k buckets:
 	//(n - k * [n/k]) of buckets have ([n/k] + 1) item
 	//k - (n - k * [n/k]) of buckets have [n/k] item
-	*proc_startid = (int *) malloc(num, sizeof(int));
-	*proc_chunksize = (int *) malloc(num, sizeof(int));
+	*proc_startid = (int *) malloc(num * sizeof(int));
+	*proc_chunksize = (int *) malloc(num * sizeof(int));
 	int chunkSize = floor(1.0 * num / comm_sz);
 	int numLarge = num - comm_sz * chunkSize;
 	for(int i = 0; i < numLarge; ++i){
@@ -100,11 +102,10 @@ void distribute_input(float** a_local,
 	}
 
 	//3. create local inputs
-	*a_local = (float *) malloc((*proc_chunksize)[my_rank] * num, sizeof(float));
-	*b_local = (float *) malloc((*proc_chunksize)[my_rank], sizeof(float));
-	*x_local = (float *) malloc(num, sizeof(float));
+	*a_local = (float *) malloc((*proc_chunksize)[my_rank] * num * sizeof(float));
+	*b_local = (float *) malloc((*proc_chunksize)[my_rank] * sizeof(float));
 
-	//4. distribute a
+	//4. distribute a_local
 	int a_chunksize[64];
 	int a_startid[64];
 	for(int i = 0; i < comm_sz; ++i){
@@ -114,15 +115,18 @@ void distribute_input(float** a_local,
 	MPI_Scatterv(a, a_chunksize, a_startid, MPI_FLOAT,
 		   	*a_local, a_chunksize[my_rank], MPI_FLOAT, 0, MPI_COMM_WORLD);
 
-	//5. distribute b
+	//5. distribute b_local
 	MPI_Scatterv(b, *proc_chunksize, *proc_startid, MPI_FLOAT,
 			*b_local, (*proc_chunksize)[my_rank], MPI_FLOAT, 0, MPI_COMM_WORLD);
 
 	//6. distribute x
-	MPI_Scatterv(x, *proc_chunksize, *proc_startid, MPI_FLOAT,
-			*b_local, (*proc_chunksize)[my_rank], MPI_FLOAT, 0, MPI_COMM_WORLD);
+	if(my_rank != 0){
+		x = (float*) malloc(num * sizeof(float));
+	}
+	MPI_Bcast(x, num, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
-
+	//7. let all procs know err
+	MPI_Bcast(&err, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
 }
 
 /******************************************************/
@@ -181,7 +185,7 @@ void get_input(char filename[])
 	for(i = 0; i < num; i++)
 	{
 		for(j = 0; j < num; j++)
-			fscanf(fp,"%f ",&a[TO_ONE_DIM(x,y,n)]);
+			fscanf(fp,"%f ",&a[TO_ONE_DIM(i,j,num)]);
    
 		/* reading the b element */
 		fscanf(fp,"%f ",&b[i]);
@@ -190,7 +194,54 @@ void get_input(char filename[])
 	fclose(fp); 
 }
 
+int solve_gs(const int comm_sz, const int my_rank){
+	//local data for each proc
+	float* a_local;
+	float* b_local;
+	int* proc_startid;
+	int* proc_chunksize;
 
+	//distribute data to each proc
+	distribute_input(&a_local,
+			&b_local,
+			&proc_startid,
+			&proc_chunksize,
+			comm_sz,
+			my_rank);
+
+	float* x_new = (float*) malloc(num * sizeof(float));
+	int iter = 0;
+	int unfinish = 1;
+	for(; unfinish; iter++){
+		//solve one iter in each proc
+		int has_next_round = solve_one_iter(a_local,
+				b_local,
+				x,
+				proc_startid[my_rank],
+				proc_chunksize[my_rank],
+				x_new);
+
+		//check if we are finish?
+		unfinish = 0;
+		MPI_Allreduce(&has_next_round,
+				&unfinish,
+				1,
+				MPI_INT,
+				MPI_BOR,
+				MPI_COMM_WORLD);
+
+		//collect new_x
+		MPI_Allgatherv(&x_new[proc_startid[my_rank]],
+				proc_chunksize[my_rank],
+				MPI_FLOAT,
+				x,
+				proc_chunksize,
+				proc_startid,
+				MPI_FLOAT,
+				MPI_COMM_WORLD);
+	}
+	return iter;
+}
 /************************************************************/
 
 
@@ -205,7 +256,6 @@ int main(int argc, char *argv[])
 	
 	//int i;
 	//int nit = 0; /* number of iterations */
-	//char output[100] ="";
 	
 	//Process 0 read input
 	if(my_rank == 0){
@@ -224,23 +274,31 @@ int main(int argc, char *argv[])
 		* */
 		check_matrix();
 	}
+
+	int iter = solve_gs(comm_sz, my_rank);
+
+	if(my_rank == 0){
  
+		char output[100] ="";
  
-	/* Writing results to file */
-	FILE * fp;
-	sprintf(output,"%d.sol",num);
-	fp = fopen(output,"w");
-	if(!fp){
-		printf("Cannot create the file %s\n", output);
-		exit(1);
-	}
+		/* Writing results to file */
+		FILE * fp;
+		sprintf(output,"%d.sol",num);
+		fp = fopen(output,"w");
+		if(!fp){
+			printf("Cannot create the file %s\n", output);
+			exit(1);
+		}
     
-	for( i = 0; i < num; i++)
-		fprintf(fp,"%f\n",x[i]);
+		for(int i = 0; i < num; i++)
+			fprintf(fp,"%f\n",x[i]);
  
-	printf("total number of iterations: %d\n", nit);
+		printf("total number of iterations: %d\n", iter);
  
-	fclose(fp);
+		fclose(fp);
+	}
+
+
  
 	exit(0);
 }

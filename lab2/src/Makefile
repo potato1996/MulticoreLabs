@@ -1,7 +1,9 @@
 CC=mpicc
 CCFLAGS=-std=c99 -O2 -Wall -I. -lm
 
-OBJ = gs.o
+DEPS = gssol.h 
+
+OBJ = gs.o gssol.o
 
 %.o: %.c
 	$(CC) -c -o $@ $< $(CCFLAGS)
