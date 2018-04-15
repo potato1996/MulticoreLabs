@@ -11,7 +11,7 @@ data_float_t *a; /* The coefficients */
 data_float_t *x;  /* The unknowns */
 data_float_t *b;  /* The constants */
 data_float_t err; /* The absolute relative error */
-int num = 0;  /* number of unknowns */
+long long num = 0;  /* number of unknowns */
 
 /****** Function declarations */
 void check_matrix(); /* Check whether the matrix will converge */
@@ -81,7 +81,7 @@ void distribute_input(data_float_t** a_local,
 		const int my_rank){
 	
 	//1. let all process know the number of unknows
-	MPI_Bcast(&num, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(&num, 1, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
 
 	//2. calculate chunksizes
 	//cheat sheet
@@ -106,14 +106,11 @@ void distribute_input(data_float_t** a_local,
 	*b_local = (data_float_t *) malloc((*proc_chunksize)[my_rank] * sizeof(data_float_t));
 
 	//4. distribute a_local
-	int a_chunksize[64];
-	int a_startid[64];
-	for(int i = 0; i < comm_sz; ++i){
-		a_chunksize[i] = (*proc_chunksize)[i] * num;
-		a_startid[i] = (*proc_startid)[i] * num;
-	}
-	MPI_Scatterv(a, a_chunksize, a_startid, MPI_DATA_FLOAT_T,
-		   	*a_local, a_chunksize[my_rank], MPI_DATA_FLOAT_T, 0, MPI_COMM_WORLD);
+	MPI_Datatype packed_a_type;
+	MPI_Type_contiguous(num, MPI_DATA_FLOAT_T, &packed_a_type);
+	MPI_Type_commit(&packed_a_type);
+	MPI_Scatterv(a, *proc_chunksize, *proc_startid, packed_a_type,
+			*a_local, (*proc_chunksize)[my_rank], packed_a_type, 0, MPI_COMM_WORLD);
 
 	//5. distribute b_local
 	MPI_Scatterv(b, *proc_chunksize, *proc_startid, MPI_DATA_FLOAT_T,
@@ -138,7 +135,7 @@ void distribute_input(data_float_t** a_local,
  * num will have number of variables
  * err will have the absolute error that you need to reach
  */
-inline int getNextInt(const char* buf, int pos, float* num){
+inline int getNextInt(const char* buf, int pos, float* res){
 	while(buf[pos] == ' ')pos++;
 	char intbuf[11];
 	int intLen = 0;
@@ -148,7 +145,7 @@ inline int getNextInt(const char* buf, int pos, float* num){
 		intLen++;
 	}
 	intbuf[intLen] = '\0';
-	*num =  atof(intbuf);
+	*res =  atof(intbuf);
 	return pos;
 }
 void get_input(char filename[])
@@ -163,7 +160,7 @@ void get_input(char filename[])
 		exit(1);
 	}
 
-	fscanf(fp,"%d ",&num);
+	fscanf(fp,"%lld ",&num);
 	fscanf(fp,FORMAT_STR" ",&err);
 
 	/* Now, time to allocate the matrices and vectors */
@@ -380,7 +377,7 @@ int main(int argc, char *argv[])
  
 		/* Writing results to file */
 		FILE * fp;
-		sprintf(output,"%d.sol",num);
+		sprintf(output,"%lld.sol",num);
 		fp = fopen(output,"w");
 		if(!fp){
 			printf("Cannot create the file %s\n", output);

@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <math.h>
 extern data_float_t err;
-extern int num;
+extern long long num;
 
 int solve_one_iter(const data_float_t* restrict a_local,
 		const data_float_t* restrict b_local,
