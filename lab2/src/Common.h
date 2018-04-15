@@ -4,6 +4,7 @@
 
 /** SWITCHES **/
 //#define DEBUG
+#define ENABLE_TIMING
 #define USE_32BIT_FLOAT
 
 

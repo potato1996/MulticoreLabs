@@ -138,6 +138,19 @@ void distribute_input(data_float_t** a_local,
  * num will have number of variables
  * err will have the absolute error that you need to reach
  */
+inline int getNextInt(const char* buf, int pos, float* num){
+	while(buf[pos] == ' ')pos++;
+	char intbuf[11];
+	int intLen = 0;
+	while(buf[pos] != ' ' && buf[pos] != '\n'){
+		intbuf[intLen] = buf[pos];
+		pos++;
+		intLen++;
+	}
+	intbuf[intLen] = '\0';
+	*num =  atof(intbuf);
+	return pos;
+}
 void get_input(char filename[])
 {
 	FILE * fp;
@@ -179,18 +192,41 @@ void get_input(char filename[])
 	/* Now .. Filling the blanks */ 
 
 	/* The initial values of Xs */
-	for(i = 0; i < num; i++)
-		fscanf(fp,FORMAT_STR" ", &x[i]);
+	//for(i = 0; i < num; i++)
+	//	fscanf(fp,FORMAT_STR" ", &x[i]);
  
-	for(i = 0; i < num; i++)
-	{
-		for(j = 0; j < num; j++)
-			fscanf(fp,FORMAT_STR" ",&a[TO_ONE_DIM(i,j,num)]);
+	//for(i = 0; i < num; i++)
+	//{
+	//	for(j = 0; j < num; j++)
+	//		fscanf(fp,FORMAT_STR" ",&a[TO_ONE_DIM(i,j,num)]);
    
 		/* reading the b element */
-		fscanf(fp,FORMAT_STR" ",&b[i]);
+	//	fscanf(fp,FORMAT_STR" ",&b[i]);
+	//}
+	//
+	
+	/* Read file line by line, much faster! */
+	char* lineBuf = (char*) malloc(11 * num); 
+	
+	/* The inital values of Xs */
+	fgets(lineBuf, 11 * num, fp);
+	int linepos = 0;
+	for(i = 0; i < num; i++){
+		linepos = getNextInt(lineBuf, linepos, &x[i]);
+	}
+	
+	for(i = 0; i < num; i++){
+		fgets(lineBuf, 11 * num, fp);
+		linepos = 0;
+		for(j = 0; j < num; j++){
+			linepos = getNextInt(lineBuf, linepos, &a[TO_ONE_DIM(i, j, num)]);
+		}
+		
+		/* reading the b element */
+		linepos = getNextInt(lineBuf, linepos, &b[i]);
 	}
  
+	free(lineBuf);
 	fclose(fp); 
 }
 
@@ -201,6 +237,13 @@ int solve_gs(const int comm_sz, const int my_rank){
 	int* proc_startid;
 	int* proc_chunksize;
 
+#ifdef ENABLE_TIMING
+	double startTime, finishTime;
+	if(my_rank == 0){
+		startTime = MPI_Wtime();
+	}
+#endif
+
 	//distribute data to each proc
 	distribute_input(&a_local,
 			&b_local,
@@ -208,6 +251,15 @@ int solve_gs(const int comm_sz, const int my_rank){
 			&proc_chunksize,
 			comm_sz,
 			my_rank);
+
+#ifdef ENABLE_TIMING
+	if(my_rank == 0){
+		finishTime = MPI_Wtime();
+		printf("Input Distribution Time = %lf seconds\n", finishTime - startTime);
+		startTime = MPI_Wtime();
+	}
+#endif
+
 
 	data_float_t* x_new = (data_float_t*) malloc(num * sizeof(data_float_t));
 	int iter = 0;
@@ -257,6 +309,14 @@ int solve_gs(const int comm_sz, const int my_rank){
 	free(b_local);
 	free(proc_startid);
 	free(proc_chunksize);
+
+#ifdef ENABLE_TIMING
+	if(my_rank == 0){
+		finishTime = MPI_Wtime();
+		printf("Computing Time = %lf seconds\n", finishTime - startTime);
+	}
+#endif
+
 	return iter;
 }
 /************************************************************/
@@ -273,23 +333,43 @@ int main(int argc, char *argv[])
 	
 	//int i;
 	//int nit = 0; /* number of iterations */
-	
+
+#ifdef ENABLE_TIMING
+	double startTime, finishTime;
+#endif
+
 	//Process 0 read input
 	if(my_rank == 0){
+
+#ifdef ENABLE_TIMING
+		startTime = MPI_Wtime();
+#endif
+
 		if( argc != 2){
 			printf("Usage: ./gsref filename\n");
-			exit(1);
+			MPI_Abort(MPI_COMM_WORLD, 1);
 		}
   
 		/* Read the input file and fill the global data structure above */ 
 		get_input(argv[1]);
+
+		if( num < comm_sz){
+			printf("# of unknowns < number of processes, ABORT\n");
+			MPI_Abort(MPI_COMM_WORLD, 2);
+		}
  
 		/* Check for convergence condition */
 		/* This function will exit the program if the coffeicient will never converge to 
 		* * the needed absolute error. 
 		* * This is not expected to happen for this programming assignment.
 		* */
-		check_matrix();
+		//check_matrix();
+
+#ifdef ENABLE_TIMING
+		finishTime = MPI_Wtime();
+		printf("Reading Input Time = %lf seconds\n", finishTime - startTime);
+#endif
+
 	}
 
 	int iter = solve_gs(comm_sz, my_rank);
